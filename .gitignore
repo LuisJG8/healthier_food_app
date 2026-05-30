@@ -1,0 +1,8 @@
+/node_modules
+/.pnpm-store
+/dist
+/src-tauri/target
+/.DS_Store
+/.idea
+/.vscode
+*.log
