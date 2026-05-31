@@ -57,7 +57,7 @@ export async function fetchProductInBrowser(barcode: string): Promise<Product> {
       signal: controller.signal,
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
+    if (error instanceof Error && error.name === "AbortError") {
       throw new Error("Open Food Facts request timed out.");
     }
     throw error;

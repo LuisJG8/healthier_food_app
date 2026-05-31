@@ -24,14 +24,11 @@ import type { AlternativeProduct, AppSettings, IngredientFlag, Product, QualityS
 
 type Tab = "scan" | "history" | "profile";
 
-const SAMPLE_BARCODES = [
-  { label: "Coca-Cola", value: "5449000000996" },
-  { label: "Nutella", value: "3017620422003" },
-];
+const TEST_BARCODE = "5449000000996";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("scan");
-  const [barcode, setBarcode] = useState("");
+  const [barcode, setBarcode] = useState(TEST_BARCODE);
   const [product, setProduct] = useState<Product | null>(null);
   const [history, setHistory] = useState<ScanHistoryItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ strictSeedOilPenalty: true });
@@ -50,6 +47,7 @@ export default function App() {
     const validationError = getBarcodeError(input);
 
     if (validationError) {
+      setProduct(null);
       setError(validationError);
       return;
     }
@@ -58,6 +56,7 @@ export default function App() {
 
     setIsLoading(true);
     setError(null);
+    setProduct(null);
 
     try {
       const nextProduct = await fetchProductByBarcode(normalized);
@@ -126,24 +125,7 @@ export default function App() {
   return (
     <main className="min-h-screen bg-cream text-ink">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#fbfeff] shadow-soft md:my-6 md:min-h-[900px] md:overflow-hidden md:rounded-[34px]">
-        <header className="px-6 pb-3 pt-safe-offset">
-          <div className="mb-5 flex items-center justify-between">
-            <div className="h-10 w-10" aria-hidden="true" />
-            <div className="text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-leaf">BetterBite</p>
-              <h1 className="text-lg font-black">Explore</h1>
-            </div>
-            <div className="h-10 w-10" aria-hidden="true" />
-          </div>
-
-          <div className="mt-7 grid grid-cols-3 rounded-full bg-white p-1 shadow-inset">
-            <SegmentButton testId="tab-scan" active={activeTab === "scan"} label="Scan" onClick={() => setActiveTab("scan")} />
-            <SegmentButton testId="tab-history" active={activeTab === "history"} label="History" onClick={() => setActiveTab("history")} />
-            <SegmentButton testId="tab-profile" active={activeTab === "profile"} label="Profile" onClick={() => setActiveTab("profile")} />
-          </div>
-        </header>
-
-        <section className="flex-1 overflow-y-auto px-5 pb-28 pt-2">
+        <section className="flex-1 overflow-y-auto px-5 pb-28 pt-safe-offset">
           <AnimatePresence mode="wait">
             {activeTab === "scan" && (
               <motion.div
@@ -161,7 +143,6 @@ export default function App() {
                   onBarcodeChange={setBarcode}
                   onSubmit={handleSubmit}
                   onCameraScan={handleScanWithCamera}
-                  onSample={(value) => void handleLookup(value)}
                 />
 
                 {product && qualityScore ? (
@@ -232,6 +213,8 @@ export default function App() {
                       </p>
                     </div>
                     <button
+                      role="switch"
+                      aria-checked={settings.strictSeedOilPenalty}
                       className={`h-8 w-14 rounded-full p-1 transition ${settings.strictSeedOilPenalty ? "bg-leaf" : "bg-line"}`}
                       onClick={() => updateStrictSetting(!settings.strictSeedOilPenalty)}
                       aria-label="Toggle strict clean-label scoring"
@@ -268,18 +251,18 @@ export default function App() {
               onClick={() => setActiveTab("scan")}
             />
             <NavButton
-              testId="nav-history"
-              active={activeTab === "history"}
-              icon={<History size={21} />}
-              label="History"
-              onClick={() => setActiveTab("history")}
-            />
-            <NavButton
               testId="nav-profile"
               active={activeTab === "profile"}
               icon={<User size={21} />}
               label="Profile"
               onClick={() => setActiveTab("profile")}
+            />
+            <NavButton
+              testId="nav-history"
+              active={activeTab === "history"}
+              icon={<History size={21} />}
+              label="History"
+              onClick={() => setActiveTab("history")}
             />
           </div>
         </nav>
@@ -295,7 +278,6 @@ function ScannerCard({
   onBarcodeChange,
   onSubmit,
   onCameraScan,
-  onSample,
 }: {
   barcode: string;
   error: string | null;
@@ -303,7 +285,6 @@ function ScannerCard({
   onBarcodeChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCameraScan: () => void;
-  onSample: (value: string) => void;
 }) {
   return (
     <div className="bento-card overflow-hidden">
@@ -351,18 +332,6 @@ function ScannerCard({
             <span>{error}</span>
           </div>
         )}
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {SAMPLE_BARCODES.map((sample) => (
-            <button
-              key={sample.value}
-              type="button"
-              className="shrink-0 rounded-full border border-line bg-white px-3 py-2 text-xs font-black text-muted"
-              onClick={() => onSample(sample.value)}
-            >
-              Try {sample.label}
-            </button>
-          ))}
-        </div>
       </form>
     </div>
   );
@@ -405,17 +374,6 @@ function ProductResult({
             <p className="mt-2 line-clamp-1 text-xs font-bold text-muted">{product.categoriesText ?? product.barcode}</p>
           </div>
           <ScoreBadge value={score.value} />
-        </div>
-      </div>
-
-      <div className="bento-card bg-berry p-5 text-white">
-        <div className="flex items-center justify-between gap-5">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-white/75">Quality score</p>
-            <h3 className="mt-2 text-2xl font-black">{score.label}</h3>
-            <p className="mt-2 text-sm leading-6 text-white/85">{score.summary}</p>
-          </div>
-          <ScoreDial value={score.value} />
         </div>
       </div>
 
@@ -496,48 +454,9 @@ function ScoreBadge({ value, size = "md" }: { value: number; size?: "sm" | "md" 
       : "h-14 w-14 text-lg";
 
   return (
-    <div className={`${className} flex shrink-0 items-center justify-center rounded-full font-black ${scoreTextColor(value)} ${scoreColor(value)}`}>
+    <div className={`${className} flex shrink-0 self-center items-center justify-center rounded-full font-black ${scoreTextColor(value)} ${scoreColor(value)}`}>
       {value}
     </div>
-  );
-}
-
-function ScoreDial({ value }: { value: number }) {
-  const degrees = value * 36;
-
-  return (
-    <motion.div
-      className="relative flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-full"
-      initial={{ background: "conic-gradient(#7ea6f4 0deg, rgba(255,255,255,0.2) 0deg)" }}
-      animate={{ background: `conic-gradient(#7ea6f4 ${degrees}deg, rgba(255,255,255,0.2) ${degrees}deg)` }}
-      transition={{ duration: 0.45 }}
-    >
-      <div className="flex h-[70px] w-[70px] items-center justify-center rounded-full bg-berry text-3xl font-black">{value}</div>
-    </motion.div>
-  );
-}
-
-function SegmentButton({
-  active,
-  label,
-  onClick,
-  testId,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-  testId: string;
-}) {
-  return (
-    <button
-      data-testid={testId}
-      className={`rounded-full px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] transition ${
-        active ? "bg-oat text-leaf" : "text-muted"
-      }`}
-      onClick={onClick}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -567,14 +486,17 @@ function NavButton({
 }
 
 function scoreColor(value: number): string {
-  if (value >= 8) return "bg-leaf";
-  if (value >= 5) return "bg-sky";
-  return "bg-berry";
+  if (value <= 2) return "bg-[#df2f46]";
+  if (value <= 3) return "bg-[#f17955]";
+  if (value <= 5) return "bg-[#f4b65b]";
+  if (value <= 6) return "bg-[#f7dc62]";
+  if (value <= 8) return "bg-[#b7e55f]";
+  return "bg-[#73c84d]";
 }
 
 function scoreTextColor(value: number): string {
-  if (value >= 5 && value < 8) return "text-ink";
-  return "text-white";
+  if (value <= 2) return "text-white";
+  return "text-ink";
 }
 
 function flagColor(severity: IngredientFlag["severity"]): string {

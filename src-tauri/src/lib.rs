@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 const OPEN_FOOD_FACTS_FIELDS: &str = "code,product_name,product_name_en,generic_name,brands,categories,categories_tags,ingredients_text,ingredients_text_en,ingredients_tags,additives_tags,allergens_tags,labels_tags,nutriments,nova_group,nutriscore_grade,ecoscore_grade,image_front_url,image_url";
+static OPEN_FOOD_FACTS_CLIENT: OnceLock<Result<reqwest::Client, String>> = OnceLock::new();
 
 #[derive(Debug, Deserialize)]
 struct OpenFoodFactsResponse {
@@ -65,13 +67,7 @@ async fn fetch_product_by_barcode(barcode: String) -> Result<ProductDto, String>
         urlencoding::encode(OPEN_FOOD_FACTS_FIELDS)
     );
 
-    let client = reqwest::Client::builder()
-        .user_agent("BetterBite/0.1.0 (ingredient quality MVP; contact: local-dev)")
-        .timeout(Duration::from_secs(10))
-        .build()
-        .map_err(|error| format!("Could not initialize HTTP client: {error}"))?;
-
-    let response = client
+    let response = open_food_facts_client()?
         .get(url)
         .send()
         .await
@@ -87,6 +83,19 @@ async fn fetch_product_by_barcode(barcode: String) -> Result<ProductDto, String>
         .map_err(|error| format!("Could not read Open Food Facts response: {error}"))?;
 
     normalize_response(payload, &normalized)
+}
+
+fn open_food_facts_client() -> Result<&'static reqwest::Client, String> {
+    OPEN_FOOD_FACTS_CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .user_agent("BetterBite/0.1.0 (ingredient quality MVP; contact: local-dev)")
+                .timeout(Duration::from_secs(10))
+                .build()
+                .map_err(|error| format!("Could not initialize HTTP client: {error}"))
+        })
+        .as_ref()
+        .map_err(Clone::clone)
 }
 
 fn normalize_response(
