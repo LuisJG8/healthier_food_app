@@ -1,3 +1,3 @@
 fn main() {
-    betterbite_lib::run()
+    better_bite_lib::run()
 }

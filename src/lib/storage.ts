@@ -2,15 +2,18 @@ import type { AppSettings, ScanHistoryItem } from "../types";
 import { getBarcodeError } from "./barcode";
 import { safeOpenFoodFactsImageUrl } from "./sanitize";
 
-export const SCAN_HISTORY_KEY = "betterbite.scanHistory.v1";
-export const SETTINGS_KEY = "betterbite.settings.v1";
+export const SCAN_HISTORY_KEY = "better_bite.scanHistory.v1";
+export const SETTINGS_KEY = "better_bite.settings.v1";
+
+const LEGACY_SCAN_HISTORY_KEY = "betterbite.scanHistory.v1";
+const LEGACY_SETTINGS_KEY = "betterbite.settings.v1";
 
 const DEFAULT_SETTINGS: AppSettings = {
   strictSeedOilPenalty: true,
 };
 
 export function loadScanHistory(): ScanHistoryItem[] {
-  const value = readJson<unknown>(SCAN_HISTORY_KEY, []);
+  const value = readJsonFromKeys<unknown>([SCAN_HISTORY_KEY, LEGACY_SCAN_HISTORY_KEY], []);
 
   if (!Array.isArray(value)) {
     return [];
@@ -32,7 +35,7 @@ export function upsertScanHistory(item: ScanHistoryItem): ScanHistoryItem[] {
 }
 
 export function loadSettings(): AppSettings {
-  const value = readJson<unknown>(SETTINGS_KEY, {});
+  const value = readJsonFromKeys<unknown>([SETTINGS_KEY, LEGACY_SETTINGS_KEY], {});
 
   return {
     ...DEFAULT_SETTINGS,
@@ -49,9 +52,18 @@ export function saveSettings(settings: AppSettings): void {
 }
 
 function readJson<T>(key: string, fallback: T): T {
+  return readJsonFromKeys([key], fallback);
+}
+
+function readJsonFromKeys<T>(keys: string[], fallback: T): T {
   try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        return JSON.parse(raw) as T;
+      }
+    }
+    return fallback;
   } catch {
     return fallback;
   }

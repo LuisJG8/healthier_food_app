@@ -206,7 +206,7 @@ export default function App() {
                     <div>
                       <h2 className="text-lg font-black">Strict clean-label scoring</h2>
                       <p className="mt-2 text-sm leading-6 text-muted">
-                        BetterBite weighs seed oils, artificial colors, sweeteners, preservatives, additives, and
+                        better_bite weighs seed oils, artificial colors, sweeteners, preservatives, additives, and
                         ultra-processing heavily.
                       </p>
                     </div>

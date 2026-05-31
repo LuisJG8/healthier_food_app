@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 const OPEN_FOOD_FACTS_FIELDS: &str = "code,product_name,product_name_en,generic_name,brands,categories,categories_tags,ingredients_text,ingredients_text_en,ingredients_tags,additives_tags,allergens_tags,labels_tags,nutriments,nova_group,nutriscore_grade,ecoscore_grade,image_front_url,image_url";
-static OPEN_FOOD_FACTS_CLIENT: OnceLock<Result<reqwest::Client, String>> = OnceLock::new();
+static OPEN_FOOD_FACTS_CLIENT: OnceLock<Result<reqwest::Client, reqwest::Error>> = OnceLock::new();
 
 #[derive(Debug, Deserialize)]
 struct OpenFoodFactsResponse {
@@ -89,13 +89,12 @@ fn open_food_facts_client() -> Result<&'static reqwest::Client, String> {
     OPEN_FOOD_FACTS_CLIENT
         .get_or_init(|| {
             reqwest::Client::builder()
-                .user_agent("BetterBite/0.1.0 (ingredient quality MVP; contact: local-dev)")
+                .user_agent("better_bite/0.1.0 (ingredient quality MVP; contact: local-dev)")
                 .timeout(Duration::from_secs(10))
                 .build()
-                .map_err(|error| format!("Could not initialize HTTP client: {error}"))
         })
         .as_ref()
-        .map_err(Clone::clone)
+        .map_err(|error| format!("Could not initialize HTTP client: {error}"))
 }
 
 fn normalize_response(
@@ -274,7 +273,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![fetch_product_by_barcode])
         .run(tauri::generate_context!())
-        .expect("error while running BetterBite");
+        .expect("error while running better_bite");
 }
 
 #[cfg(test)]
@@ -308,7 +307,7 @@ mod tests {
             product_name: Some("Test Chips".to_string()),
             product_name_en: None,
             generic_name: None,
-            brands: Some(" BetterBite ".to_string()),
+            brands: Some(" better_bite ".to_string()),
             categories: Some("Snacks, Chips".to_string()),
             categories_tags: Some(serde_json::json!(["en:snacks", "en:potato-chips"])),
             ingredients_text: Some("Potatoes, avocado oil, sea salt".to_string()),
@@ -331,7 +330,7 @@ mod tests {
 
         assert_eq!(normalized.barcode, "123456789012");
         assert_eq!(normalized.name, "Test Chips");
-        assert_eq!(normalized.brand.as_deref(), Some("BetterBite"));
+        assert_eq!(normalized.brand.as_deref(), Some("better_bite"));
         assert_eq!(normalized.categories, vec!["snacks", "potato chips"]);
         assert_eq!(normalized.nova_group, Some(3));
         assert_eq!(

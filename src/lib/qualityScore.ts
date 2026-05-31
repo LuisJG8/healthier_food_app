@@ -17,7 +17,7 @@ const PENALTY_RULES: Rule[] = [
   {
     id: "seed-oils",
     label: "Industrial seed oils",
-    description: "Contains oils BetterBite treats as lower-quality ingredients.",
+    description: "Contains oils better_bite treats as lower-quality ingredients.",
     severity: "high",
     impact: -1.5,
     terms: [
@@ -149,7 +149,7 @@ export function scoreProduct(product: Product, options: ScoreOptions = {}): Qual
     return {
       value: 5,
       label: "Needs review",
-      summary: "Ingredient data is missing, so BetterBite uses a neutral score until more details are available.",
+      summary: "Ingredient data is missing, so better_bite uses a neutral score until more details are available.",
       flags: [
         {
           id: "missing-ingredients",
@@ -385,7 +385,7 @@ function scoreIngredientLength(ingredientCount: number): IngredientFlag | null {
     return {
       id: "long-list",
       label: "Long ingredient list",
-      description: "This has more ingredients than BetterBite expects for a clean-label staple.",
+      description: "This has more ingredients than better_bite expects for a clean-label staple.",
       severity: "low",
       impact: -0.75,
       matchedTerms: [`${ingredientCount} ingredients`],
@@ -482,14 +482,14 @@ function scoreSummary(value: number, flags: IngredientFlag[]): string {
   }
 
   if (flags.length === 0) {
-    return "This product looks acceptable, but BetterBite found limited reasons to raise or lower the score.";
+    return "This product looks acceptable, but better_bite found limited reasons to raise or lower the score.";
   }
 
   const topFlags = flags
     .slice(0, 2)
     .map((flag) => flag.label.toLowerCase())
     .join(" and ");
-  return `Score lowered because BetterBite found ${topFlags}.`;
+  return `Score lowered because better_bite found ${topFlags}.`;
 }
 
 function confidenceFor(product: Product, ingredientCount: number): QualityScore["confidence"] {

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "mobile",
-  "description": "Mobile scanner permissions for BetterBite.",
+  "description": "Mobile scanner permissions for better_bite.",
   "platforms": ["iOS", "android"],
   "windows": ["main"],
   "permissions": [

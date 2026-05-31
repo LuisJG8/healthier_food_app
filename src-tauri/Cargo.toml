@@ -1,12 +1,12 @@
 [package]
-name = "betterbite"
+name = "better_bite"
 version = "0.1.0"
 description = "Ingredient-first barcode scanner"
-authors = ["BetterBite"]
+authors = ["better_bite"]
 edition = "2021"
 
 [lib]
-name = "betterbite_lib"
+name = "better_bite_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
