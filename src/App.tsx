@@ -24,11 +24,9 @@ import type { AlternativeProduct, AppSettings, IngredientFlag, Product, QualityS
 
 type Tab = "scan" | "history" | "profile";
 
-const TEST_BARCODE = "5449000000996";
-
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("scan");
-  const [barcode, setBarcode] = useState(TEST_BARCODE);
+  const [barcode, setBarcode] = useState("");
   const [product, setProduct] = useState<Product | null>(null);
   const [history, setHistory] = useState<ScanHistoryItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ strictSeedOilPenalty: true });
