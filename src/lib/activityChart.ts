@@ -104,9 +104,22 @@ function monthLabelForWeek(weekStart: Date, today: Date): string | null {
 
 function getCurrentStreak(activityByDate: Map<string, number>, today: Date): number {
   let streak = 0;
+  let startDate = today;
+
+  const todayKey = toDateKey(today);
+  const yesterday = addDays(today, -1);
+  const yesterdayKey = toDateKey(yesterday);
+
+  if ((activityByDate.get(todayKey) ?? 0) <= 0) {
+    if ((activityByDate.get(yesterdayKey) ?? 0) <= 0) {
+      return 0;
+    }
+
+    startDate = yesterday;
+  }
 
   for (let offset = 0; offset < CHART_WEEK_COUNT * DAYS_PER_WEEK; offset += 1) {
-    const dateKey = toDateKey(addDays(today, -offset));
+    const dateKey = toDateKey(addDays(startDate, -offset));
     if ((activityByDate.get(dateKey) ?? 0) <= 0) {
       break;
     }

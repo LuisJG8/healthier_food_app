@@ -44,6 +44,19 @@ describe("activity chart helpers", () => {
     expect(activityLevel(4)).toBe(4);
   });
 
+  it("keeps the current streak alive when today has no activity yet", () => {
+    const chart = buildActivityChart(
+      [
+        { date: "2026-05-29", count: 1, events: { login: 1 } },
+        { date: "2026-05-30", count: 2, events: { barcode_scan: 2 } },
+        { date: "2026-05-31", count: 1, events: { login: 1 } },
+      ],
+      new Date(2026, 5, 1),
+    );
+
+    expect(chart.currentStreak).toBe(3);
+  });
+
   it("builds the compact current week from Monday to Sunday", () => {
     const week = buildCurrentActivityWeek(
       [
