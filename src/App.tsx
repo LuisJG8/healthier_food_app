@@ -80,6 +80,7 @@ export default function App() {
   const [historyDetailError, setHistoryDetailError] = useState<string | null>(null);
   const [isHistoryDetailLoading, setIsHistoryDetailLoading] = useState(false);
   const scanResultRef = useRef<HTMLDivElement>(null);
+  const historyDetailRequestRef = useRef(0);
 
   const qualityScore = useMemo(() => (product ? scoreProduct(product, settings) : null), [product, settings]);
   const alternatives = useMemo(() => (product ? getAlternatives(product) : []), [product]);
@@ -247,6 +248,9 @@ export default function App() {
   }
 
   async function handleHistoryItemSelect(item: ScanHistoryItem) {
+    const requestId = historyDetailRequestRef.current + 1;
+    historyDetailRequestRef.current = requestId;
+
     setSelectedHistoryItem(item);
     setSelectedHistoryProduct(null);
     setSelectedHistoryScore(null);
@@ -255,17 +259,28 @@ export default function App() {
 
     try {
       const nextProduct = await fetchProductByBarcode(item.barcode);
+      if (historyDetailRequestRef.current !== requestId) {
+        return;
+      }
+
       setSelectedHistoryProduct(nextProduct);
       setSelectedHistoryScore(scoreProduct(nextProduct, settings));
     } catch (detailError) {
+      if (historyDetailRequestRef.current !== requestId) {
+        return;
+      }
+
       const message = detailError instanceof Error ? detailError.message : "Could not load full product details.";
       setHistoryDetailError(message);
     } finally {
-      setIsHistoryDetailLoading(false);
+      if (historyDetailRequestRef.current === requestId) {
+        setIsHistoryDetailLoading(false);
+      }
     }
   }
 
   function clearHistoryDetail() {
+    historyDetailRequestRef.current += 1;
     setSelectedHistoryItem(null);
     setSelectedHistoryProduct(null);
     setSelectedHistoryScore(null);
