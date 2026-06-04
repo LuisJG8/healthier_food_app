@@ -1,13 +1,52 @@
-import type { AppSettings, ScanHistoryItem } from "../types";
+import type { ActivityDay, ActivityEventCounts, ActivityEventType, AppSettings, ScanHistoryItem } from "../types";
 import { getBarcodeError } from "./barcode";
 import { safeOpenFoodFactsImageUrl } from "./sanitize";
 
+export const ACTIVITY_KEY = "betterbite.activity.v1";
 export const SCAN_HISTORY_KEY = "betterbite.scanHistory.v1";
 export const SETTINGS_KEY = "betterbite.settings.v1";
+
+const ACTIVITY_RETENTION_DAYS = 400;
+const ACTIVITY_EVENT_TYPES = new Set<ActivityEventType>(["barcode_scan", "profile_view", "login"]);
 
 const DEFAULT_SETTINGS: AppSettings = {
   strictSeedOilPenalty: true,
 };
+
+export function loadActivityDays(): ActivityDay[] {
+  const value = readJson<unknown>(ACTIVITY_KEY, []);
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return sanitizeActivityDays(value);
+}
+
+export function saveActivityDays(days: ActivityDay[]): void {
+  writeJson(ACTIVITY_KEY, sanitizeActivityDays(days));
+}
+
+export function recordActivity(type: ActivityEventType, date = new Date()): ActivityDay[] {
+  const dateKey = toLocalDateKey(date);
+  const existing = loadActivityDays();
+  const byDate = new Map(existing.map((day) => [day.date, day]));
+  const current = byDate.get(dateKey) ?? { date: dateKey, count: 0, events: {} };
+  const nextEvents: ActivityEventCounts = {
+    ...current.events,
+    [type]: (current.events[type] ?? 0) + 1,
+  };
+
+  byDate.set(dateKey, {
+    date: dateKey,
+    count: current.count + 1,
+    events: nextEvents,
+  });
+
+  const next = sanitizeActivityDays(Array.from(byDate.values()));
+  writeJson(ACTIVITY_KEY, next);
+  return next;
+}
 
 export function loadScanHistory(): ScanHistoryItem[] {
   const value = readJson<unknown>(SCAN_HISTORY_KEY, []);
@@ -99,6 +138,72 @@ function toScanHistoryItem(value: unknown): ScanHistoryItem | null {
   }
 
   return item;
+}
+
+function sanitizeActivityDays(values: unknown[]): ActivityDay[] {
+  return values
+    .map(toActivityDay)
+    .filter((day): day is ActivityDay => day !== null)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-ACTIVITY_RETENTION_DAYS);
+}
+
+function toActivityDay(value: unknown): ActivityDay | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const date = trimText(value.date, 10);
+  if (!isValidDateKey(date) || typeof value.count !== "number" || !Number.isFinite(value.count)) {
+    return null;
+  }
+
+  const count = Math.round(value.count);
+  if (count < 0) {
+    return null;
+  }
+
+  return {
+    date,
+    count,
+    events: toActivityEventCounts(value.events),
+  };
+}
+
+function toActivityEventCounts(value: unknown): ActivityEventCounts {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const events: ActivityEventCounts = {};
+  for (const [type, count] of Object.entries(value)) {
+    if (ACTIVITY_EVENT_TYPES.has(type as ActivityEventType) && typeof count === "number" && Number.isFinite(count) && count > 0) {
+      const safeCount = Math.round(count);
+      if (safeCount > 0) {
+        events[type as ActivityEventType] = safeCount;
+      }
+    }
+  }
+
+  return events;
+}
+
+function toLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isValidDateKey(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,5 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { loadScanHistory, loadSettings, saveScanHistory, saveSettings, SCAN_HISTORY_KEY, SETTINGS_KEY } from "./storage";
+import {
+  ACTIVITY_KEY,
+  loadActivityDays,
+  loadScanHistory,
+  loadSettings,
+  recordActivity,
+  saveActivityDays,
+  saveScanHistory,
+  saveSettings,
+  SCAN_HISTORY_KEY,
+  SETTINGS_KEY,
+} from "./storage";
 
 class MemoryStorage {
   private values = new Map<string, string>();
@@ -71,6 +82,57 @@ describe("storage helpers", () => {
     expect(loadSettings()).toEqual({ strictSeedOilPenalty: false });
   });
 
+  it("records multiple activity event types on the same day", () => {
+    recordActivity("login", new Date(2026, 4, 31, 9));
+    recordActivity("barcode_scan", new Date(2026, 4, 31, 12));
+    recordActivity("profile_view", new Date(2026, 4, 31, 18));
+
+    expect(loadActivityDays()).toEqual([
+      {
+        date: "2026-05-31",
+        count: 3,
+        events: {
+          login: 1,
+          barcode_scan: 1,
+          profile_view: 1,
+        },
+      },
+    ]);
+  });
+
+  it("filters corrupted activity entries and event counts", () => {
+    localStorage.setItem(
+      ACTIVITY_KEY,
+      JSON.stringify([
+        { date: "2026-05-31", count: 2, events: { login: 1, barcode_scan: 1, unknown: 4 } },
+        { date: "2026-02-30", count: 1, events: { login: 1 } },
+        { date: "2026-06-01", count: -1, events: { login: 1 } },
+        { date: "2026-06-02", count: "1", events: { login: 1 } },
+        { date: "2026-06-03", count: 1, events: { login: "1", profile_view: Number.NaN } },
+      ]),
+    );
+
+    expect(loadActivityDays()).toEqual([
+      { date: "2026-05-31", count: 2, events: { login: 1, barcode_scan: 1 } },
+      { date: "2026-06-03", count: 1, events: {} },
+    ]);
+  });
+
+  it("retains roughly the last 400 activity days", () => {
+    const days = Array.from({ length: 405 }, (_, index) => ({
+      date: toDateKey(new Date(2025, 0, 1 + index)),
+      count: 1,
+      events: { login: 1 },
+    }));
+
+    saveActivityDays(days);
+
+    const stored = loadActivityDays();
+    expect(stored).toHaveLength(400);
+    expect(stored[0]?.date).toBe(toDateKey(new Date(2025, 0, 6)));
+    expect(stored.at(-1)?.date).toBe(toDateKey(new Date(2025, 0, 405)));
+  });
+
   it("does not throw when localStorage writes fail", () => {
     Object.defineProperty(globalThis, "localStorage", {
       value: new ThrowingStorage(),
@@ -81,5 +143,14 @@ describe("storage helpers", () => {
       saveScanHistory([{ barcode: "12345678", productName: "Apple", score: 9, scannedAt: "2026-05-29T00:00:00.000Z" }]),
     ).not.toThrow();
     expect(() => saveSettings({ strictSeedOilPenalty: false })).not.toThrow();
+    expect(() => saveActivityDays([{ date: "2026-05-31", count: 1, events: { login: 1 } }])).not.toThrow();
+    expect(() => recordActivity("login", new Date(2026, 4, 31))).not.toThrow();
   });
 });
+
+function toDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}

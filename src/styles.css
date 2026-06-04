@@ -8,7 +8,7 @@
   }
 
   html {
-    background: #f1fafb;
+    background: #fbf5dd;
   }
 
   body {
@@ -27,10 +27,10 @@
 
 @layer components {
   .bento-card {
-    border: 1px solid #c9eaf1;
+    border: 1px solid #e7e1b1;
     border-radius: 8px;
-    background: #ffffff;
-    box-shadow: 0 12px 28px rgba(74, 77, 231, 0.1);
+    background: #fffaf0;
+    box-shadow: 0 12px 28px rgba(13, 83, 14, 0.1);
   }
 
   .icon-button {
@@ -40,15 +40,15 @@
     align-items: center;
     justify-content: center;
     border-radius: 999px;
-    color: #3d4670;
+    color: #306d29;
     transition:
       color 150ms ease,
       background-color 150ms ease;
   }
 
   .icon-button:hover {
-    background: #ffffff;
-    color: #15174d;
+    background: #fbf5dd;
+    color: #0d530e;
   }
 
   .pt-safe-offset {

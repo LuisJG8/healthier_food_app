@@ -46,6 +46,7 @@ export interface AlternativeProduct {
   category: string;
   reason: string;
   scoreHint: string;
+  similarityReason?: string;
 }
 
 export interface ScanHistoryItem {
@@ -55,6 +56,16 @@ export interface ScanHistoryItem {
   score: number;
   scannedAt: string;
   imageUrl?: string;
+}
+
+export type ActivityEventType = "barcode_scan" | "profile_view" | "login";
+
+export type ActivityEventCounts = Partial<Record<ActivityEventType, number>>;
+
+export interface ActivityDay {
+  date: string;
+  count: number;
+  events: ActivityEventCounts;
 }
 
 export interface AppSettings {
