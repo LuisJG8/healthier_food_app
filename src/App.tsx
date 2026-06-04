@@ -762,8 +762,8 @@ function formatProductSource(source: Product["source"]): string {
   return source === "open-food-facts" ? "Open Food Facts" : "Demo product";
 }
 
-function productDataRows(data: Record<string, unknown>): Array<[string, unknown]> {
-  return Object.entries(data).sort(([left], [right]) => left.localeCompare(right));
+function productDataRows(data?: Record<string, unknown>): Array<[string, unknown]> {
+  return Object.entries(data ?? {}).sort(([left], [right]) => left.localeCompare(right));
 }
 
 function formatDataKey(key: string): string {
