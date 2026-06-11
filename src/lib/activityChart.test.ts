@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityLevel, buildActivityChart, buildCurrentActivityWeek } from "./activityChart";
+import { activityLevel, buildActivityChart, buildCurrentActivityWeek, formatActivityWeekRange } from "./activityChart";
 import type { ActivityDay } from "../types";
 
 describe("activity chart helpers", () => {
@@ -75,5 +75,12 @@ describe("activity chart helpers", () => {
     expect(week[0]?.count).toBe(1);
     expect(week[4]?.level).toBe(3);
     expect(week[6]?.isFuture).toBe(true);
+  });
+
+  it("formats the current week range as DD/MM/YYYY", () => {
+    const week = buildCurrentActivityWeek([], new Date(2026, 5, 11));
+
+    expect(formatActivityWeekRange(week)).toBe("08/06/2026 - 14/06/2026");
+    expect(formatActivityWeekRange([])).toBe("");
   });
 });

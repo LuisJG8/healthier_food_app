@@ -2,10 +2,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   ACTIVITY_KEY,
   loadActivityDays,
+  loadOnboardingProfile,
   loadScanHistory,
   loadSettings,
+  ONBOARDING_KEY,
   recordActivity,
   saveActivityDays,
+  saveOnboardingProfile,
   saveScanHistory,
   saveSettings,
   SCAN_HISTORY_KEY,
@@ -82,6 +85,88 @@ describe("storage helpers", () => {
     expect(loadSettings()).toEqual({ strictSeedOilPenalty: false });
   });
 
+  it("persists completed onboarding only when every question group has valid values", () => {
+    expect(loadOnboardingProfile()).toEqual({
+      mainGoals: [],
+      dietPreferences: [],
+      foodsToAvoid: [],
+      swapStrictness: [],
+      completed: false,
+    });
+
+    saveOnboardingProfile({
+      mainGoals: ["eat-healthier", "energy-focus"],
+      dietPreferences: ["vegetarian", "gluten-free"],
+      foodsToAvoid: ["seed-oils", "added-sugars"],
+      swapStrictness: ["closest-match", "cleaner-ingredients"],
+      completed: true,
+    });
+    expect(loadOnboardingProfile()).toEqual({
+      mainGoals: ["eat-healthier", "energy-focus"],
+      dietPreferences: ["vegetarian", "gluten-free"],
+      foodsToAvoid: ["seed-oils", "added-sugars"],
+      swapStrictness: ["closest-match", "cleaner-ingredients"],
+      completed: true,
+    });
+
+    localStorage.setItem(
+      ONBOARDING_KEY,
+      JSON.stringify({
+        mainGoals: ["pizza", "manage-weight"],
+        dietPreferences: ["vegetarian", "daily"],
+        foodsToAvoid: ["gmos", "unknown"],
+        swapStrictness: ["strict-clean-label", "anything"],
+        completed: true,
+      }),
+    );
+    expect(loadOnboardingProfile()).toEqual({
+      mainGoals: ["manage-weight"],
+      dietPreferences: ["vegetarian"],
+      foodsToAvoid: ["gmos"],
+      swapStrictness: ["strict-clean-label"],
+      completed: true,
+    });
+  });
+
+  it("does not mark partial onboarding as completed", () => {
+    localStorage.setItem(
+      ONBOARDING_KEY,
+      JSON.stringify({
+        mainGoals: ["eat-healthier"],
+        dietPreferences: ["vegan"],
+        foodsToAvoid: [],
+        swapStrictness: ["same-convenience"],
+        completed: true,
+      }),
+    );
+
+    expect(loadOnboardingProfile()).toEqual({
+      mainGoals: ["eat-healthier"],
+      dietPreferences: ["vegan"],
+      foodsToAvoid: [],
+      swapStrictness: ["same-convenience"],
+      completed: false,
+    });
+  });
+
+  it("keeps exclusive onboarding options mutually exclusive", () => {
+    saveOnboardingProfile({
+      mainGoals: ["eat-healthier"],
+      dietPreferences: ["no-preference", "vegan", "gluten-free"],
+      foodsToAvoid: ["none", "seed-oils", "added-sugars"],
+      swapStrictness: ["closest-match"],
+      completed: true,
+    });
+
+    expect(loadOnboardingProfile()).toEqual({
+      mainGoals: ["eat-healthier"],
+      dietPreferences: ["no-preference"],
+      foodsToAvoid: ["none"],
+      swapStrictness: ["closest-match"],
+      completed: true,
+    });
+  });
+
   it("records multiple activity event types on the same day", () => {
     recordActivity("login", new Date(2026, 4, 31, 9));
     recordActivity("barcode_scan", new Date(2026, 4, 31, 12));
@@ -143,6 +228,15 @@ describe("storage helpers", () => {
       saveScanHistory([{ barcode: "12345678", productName: "Apple", score: 9, scannedAt: "2026-05-29T00:00:00.000Z" }]),
     ).not.toThrow();
     expect(() => saveSettings({ strictSeedOilPenalty: false })).not.toThrow();
+    expect(() =>
+      saveOnboardingProfile({
+        mainGoals: ["eat-healthier"],
+        dietPreferences: ["vegan"],
+        foodsToAvoid: ["none"],
+        swapStrictness: ["closest-match"],
+        completed: true,
+      }),
+    ).not.toThrow();
     expect(() => saveActivityDays([{ date: "2026-05-31", count: 1, events: { login: 1 } }])).not.toThrow();
     expect(() => recordActivity("login", new Date(2026, 4, 31))).not.toThrow();
   });

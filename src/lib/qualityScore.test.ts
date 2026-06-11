@@ -69,6 +69,103 @@ describe("scoreProduct", () => {
     expect(result.label).toBe("Excellent");
   });
 
+  it("covers the score bands used by the swap experience", () => {
+    const cases = [
+      {
+        name: "Low quality",
+        product: product({
+          name: "Extreme cola",
+          categoriesText: "Soda",
+          ingredientsText:
+            "Carbonated water, high fructose corn syrup, corn syrup, caramel color, red 40, yellow 5, sodium benzoate, potassium sorbate, polysorbate 80, sugar, artificial color",
+          novaGroup: 4,
+          additivesTags: ["en:e150d", "en:e129", "en:e102", "en:e211", "en:e202", "en:e433"],
+          nutriments: { sugars_100g: 40 },
+        }),
+        expectedLabel: "Low quality",
+        maximum: 2,
+      },
+      {
+        name: "Limit",
+        product: product({
+          name: "Conventional nacho chips",
+          categoriesText: "Tortilla chips",
+          ingredientsText:
+            "Corn, vegetable oil, maltodextrin, salt, cheddar cheese, whey, artificial color red 40, yellow 6, natural flavors, sugar",
+          novaGroup: 4,
+          additivesTags: ["en:e129", "en:e110", "en:e621", "en:e631"],
+        }),
+        expectedLabel: "Limit",
+        minimum: 3,
+        maximum: 4,
+      },
+      {
+        name: "Mixed",
+        product: product({
+          name: "Packaged sweet crackers",
+          categoriesText: "Crackers",
+          ingredientsText: "Wheat flour, cane sugar, soybean oil, salt, natural flavor, xanthan gum, citric acid, calcium propionate",
+          novaGroup: 3,
+          nutriments: { sugars_100g: 12 },
+        }),
+        expectedLabel: "Mixed",
+        minimum: 5,
+        maximum: 6,
+      },
+      {
+        name: "Clean pick",
+        product: product({
+          name: "Granola bar",
+          categoriesText: "Snack bar",
+          ingredientsText: "Oats, almonds, rice crisps, honey, cane sugar, sea salt, natural flavor, sunflower oil",
+          novaGroup: 3,
+          nutriments: { sugars_100g: 9 },
+        }),
+        expectedLabel: "Clean pick",
+        minimum: 7,
+        maximum: 8,
+      },
+      {
+        name: "Excellent",
+        product: product({
+          name: "Sea Salt Tortilla Chips",
+          brand: "Siete",
+          categoriesText: "Tortilla chips",
+          ingredientsText: "Cassava flour, avocado oil, coconut flour, chia seed, sea salt",
+          novaGroup: 3,
+        }),
+        expectedLabel: "Excellent",
+        minimum: 9,
+      },
+    ];
+
+    for (const item of cases) {
+      const result = scoreProduct(item.product);
+
+      expect(result.label, item.name).toBe(item.expectedLabel);
+      if (item.minimum !== undefined) {
+        expect(result.value, item.name).toBeGreaterThanOrEqual(item.minimum);
+      }
+      if (item.maximum !== undefined) {
+        expect(result.value, item.name).toBeLessThanOrEqual(item.maximum);
+      }
+    }
+  });
+
+  it("keeps the missing ingredient path neutral and low confidence", () => {
+    const result = scoreProduct(
+      product({
+        name: "Unknown packaged snack",
+        ingredientsText: undefined,
+        ingredientsTags: [],
+      }),
+    );
+
+    expect(result.value).toBe(5);
+    expect(result.label).toBe("Needs review");
+    expect(result.confidence).toBe("low");
+  });
+
   it("scores organic milk as excellent", () => {
     const result = scoreProduct(
       product({
