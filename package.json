@@ -9,7 +9,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "tauri": "tauri",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typesense:seed": "node scripts/seed-typesense.mjs",
+    "typesense:reset": "node scripts/seed-typesense.mjs --reset"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
@@ -17,7 +19,8 @@
     "lucide-react": "^0.468.0",
     "motion": "^12.0.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "typesense": "^3.0.6"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
