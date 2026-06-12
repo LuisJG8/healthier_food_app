@@ -838,7 +838,7 @@ function DashboardScanScreen({
         </section>
       )}
 
-      {!isScanMode && (showBarcodeEntry || error) && (
+      {(showBarcodeEntry || error) && (
         <DashboardLookupPanel
           barcode={barcode}
           error={error}
