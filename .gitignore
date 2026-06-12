@@ -1,6 +1,7 @@
 /node_modules
 /.pnpm-store
 /dist
+/typesense-data
 /src-tauri/target
 /.DS_Store
 /.idea
