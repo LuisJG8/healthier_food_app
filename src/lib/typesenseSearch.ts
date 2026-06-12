@@ -94,6 +94,17 @@ export function reduceFoodSearchState(state: FoodSearchState, action: FoodSearch
       if (!query.trim()) {
         return { ...INITIAL_FOOD_SEARCH_STATE, query };
       }
+      if (state.status === "loading" && query.trim() !== state.submittedQuery) {
+        return {
+          ...state,
+          query,
+          submittedQuery: "",
+          status: "idle",
+          results: [],
+          selectedResult: null,
+          error: null,
+        };
+      }
       return { ...state, query, error: null };
     }
     case "searchStarted":

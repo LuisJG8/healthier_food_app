@@ -103,6 +103,7 @@ describe("typesense food search helpers", () => {
     const loading = reduceFoodSearchState(withQuery, { type: "searchStarted", query: "chips" });
     const changed = reduceFoodSearchState(loading, { type: "queryChanged", query: "soda" });
 
+    expect(changed).toMatchObject({ query: "soda", submittedQuery: "", status: "idle", results: [], selectedResult: null });
     expect(reduceFoodSearchState(changed, { type: "searchSucceeded", query: "chips", results: [result] })).toBe(changed);
     expect(reduceFoodSearchState(changed, { type: "searchFailed", query: "chips", error: "offline" })).toBe(changed);
   });
