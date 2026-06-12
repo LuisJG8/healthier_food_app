@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Strategic Programming Loop</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18201b;
+      --muted: #5f675f;
+      --line: #d8ded5;
+      --paper: #fbfaf5;
+      --wash: #eef4ec;
+      --leaf: #2f6b43;
+      --clay: #9d5737;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(980px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 48px 0 64px;
+    }
+
+    h1, h2, h3 { line-height: 1.05; margin: 0; letter-spacing: 0; }
+    h1 { font-size: clamp(2.2rem, 7vw, 4.8rem); max-width: 780px; }
+    h2 { margin-top: 42px; font-size: 1.6rem; }
+    h3 { font-size: 1rem; color: var(--leaf); text-transform: uppercase; font-family: ui-sans-serif, system-ui, sans-serif; }
+    p { max-width: 68ch; color: var(--muted); }
+    a { color: var(--leaf); }
+
+    .lede {
+      font-size: 1.2rem;
+      max-width: 760px;
+      margin: 18px 0 0;
+      color: #344039;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      background: #fffef9;
+      border-radius: 8px;
+      padding: 18px;
+      min-height: 190px;
+    }
+
+    .card strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+
+    .card p { margin: 0; font-size: 0.98rem; }
+
+    .table {
+      margin-top: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fffef9;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 0.9fr 1.4fr 1.4fr;
+      border-top: 1px solid var(--line);
+    }
+
+    .row:first-child { border-top: 0; background: var(--wash); font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 800; }
+    .cell { padding: 13px 14px; }
+
+    .callout {
+      margin-top: 32px;
+      border-left: 4px solid var(--clay);
+      padding: 4px 0 4px 18px;
+    }
+
+    @media (max-width: 780px) {
+      .grid { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; }
+      .row:first-child { display: none; }
+      .cell { padding: 10px 14px; }
+      .cell::before {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--leaf);
+        font: 800 0.72rem/1 ui-sans-serif, system-ui, sans-serif;
+        text-transform: uppercase;
+      }
+      .cell:nth-child(1)::before { content: "Risk"; }
+      .cell:nth-child(2)::before { content: "Strategic question"; }
+      .cell:nth-child(3)::before { content: "Evidence"; }
+    }
+
+    @media print {
+      body { background: white; }
+      main { width: auto; padding: 24px; }
+      .card, .table { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Strategic Programming Loop</h1>
+    <p class="lede">Before asking AI or yourself to write code, make the bet explicit. Great strategic programmers keep product intent, system shape, QA, and delivery flow visible at the same time.</p>
+
+    <section class="grid" aria-label="Four-step loop">
+      <article class="card">
+        <h3>1. Intent</h3>
+        <strong>What user moment are we preserving?</strong>
+        <p>For BetterBite: the user wants a better version of the food they already want, not a moralized replacement.</p>
+      </article>
+      <article class="card">
+        <h3>2. Bet</h3>
+        <strong>What must be true?</strong>
+        <p>Example: category, texture, flavor, and convenience similarity matter more than a generic health score.</p>
+      </article>
+      <article class="card">
+        <h3>3. Slice</h3>
+        <strong>What is the smallest proof?</strong>
+        <p>Choose one narrow vertical path: scanned food, ranked alternatives, UI explanation, and feedback capture.</p>
+      </article>
+      <article class="card">
+        <h3>4. Evidence</h3>
+        <strong>How will we know?</strong>
+        <p>Use tests, examples, product review, telemetry, and user feedback to check the riskiest assumption first.</p>
+      </article>
+    </section>
+
+    <h2>Risk Map</h2>
+    <div class="table" role="table" aria-label="Strategic risk map">
+      <div class="row" role="row">
+        <div class="cell" role="columnheader">Risk</div>
+        <div class="cell" role="columnheader">Strategic question</div>
+        <div class="cell" role="columnheader">Evidence to collect</div>
+      </div>
+      <div class="row" role="row">
+        <div class="cell" role="cell">User risk</div>
+        <div class="cell" role="cell">Would a real person accept this as the same craving and occasion?</div>
+        <div class="cell" role="cell">Concrete side-by-side examples, rejection reasons, saved swaps, short interviews.</div>
+      </div>
+      <div class="row" role="row">
+        <div class="cell" role="cell">Code risk</div>
+        <div class="cell" role="cell">Can this change land without hiding complexity or breaking adjacent flows?</div>
+        <div class="cell" role="cell">Small change list, focused tests, clear ownership boundary, easy rollback.</div>
+      </div>
+      <div class="row" role="row">
+        <div class="cell" role="cell">Data risk</div>
+        <div class="cell" role="cell">Do the available product fields support the ranking claim?</div>
+        <div class="cell" role="cell">Open Food Facts field audit, fallback behavior, low-confidence states.</div>
+      </div>
+      <div class="row" role="row">
+        <div class="cell" role="cell">Release risk</div>
+        <div class="cell" role="cell">Can we expose the slice safely while learning from it?</div>
+        <div class="cell" role="cell">Feature flag, demo dataset, observability, manual QA script, rollback plan.</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p><strong>Rule of thumb:</strong> if a task only says what to code, it is tactical. If it says what decision the code will clarify, it is strategic.</p>
+    </div>
+
+    <p>Related lesson: <a href="../lessons/0001-frame-the-bet-before-the-code.html">Frame the Bet Before the Code</a>.</p>
+  </main>
+</body>
+</html>
