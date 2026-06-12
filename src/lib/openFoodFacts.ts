@@ -4,6 +4,16 @@ import { getBarcodeError, normalizeBarcode } from "./barcode";
 import { safeOpenFoodFactsImageUrl } from "./sanitize";
 
 const OPEN_FOOD_FACTS_TIMEOUT_MS = 10_000;
+const OPEN_FOOD_FACTS_MAX_RESPONSE_BYTES = 256 * 1024;
+const PRODUCT_TEXT_LIMIT = 4_000;
+const PRODUCT_SHORT_TEXT_LIMIT = 160;
+const PRODUCT_TAG_LIMIT = 80;
+const PRODUCT_TAG_INSPECT_LIMIT = PRODUCT_TAG_LIMIT * 2;
+const PRODUCT_TAG_TEXT_LIMIT = 80;
+const PRODUCT_NUTRIMENT_LIMIT = 120;
+const PRODUCT_NUTRIMENT_INSPECT_LIMIT = PRODUCT_NUTRIMENT_LIMIT * 2;
+const PRODUCT_NUTRIMENT_KEY_LIMIT = 80;
+const PRODUCT_NUTRIMENT_TEXT_LIMIT = 200;
 
 export const OPEN_FOOD_FACTS_FIELDS = [
   "code",
@@ -69,7 +79,7 @@ export async function fetchProductInBrowser(barcode: string): Promise<Product> {
     throw new Error(`Open Food Facts returned ${response.status}`);
   }
 
-  const payload = (await response.json()) as OpenFoodFactsApiResponse;
+  const payload = await readBoundedJsonResponse(response);
   return normalizeOpenFoodFactsResponse(payload, barcode);
 }
 
@@ -82,24 +92,24 @@ export function normalizeOpenFoodFactsResponse(payload: OpenFoodFactsApiResponse
 }
 
 export function normalizeOpenFoodFactsProduct(product: OpenFoodFactsApiProduct, fallbackBarcode: string): Product {
-  const name = firstText(product.product_name, product.product_name_en, product.generic_name, "Unknown product");
+  const name = trimText(firstText(product.product_name, product.product_name_en, product.generic_name, "Unknown product"), PRODUCT_SHORT_TEXT_LIMIT);
   const ingredientsText = firstText(product.ingredients_text, product.ingredients_text_en);
 
   return {
-    barcode: String(product.code ?? fallbackBarcode),
+    barcode: trimText(String(product.code ?? fallbackBarcode), PRODUCT_SHORT_TEXT_LIMIT),
     name,
-    brand: emptyToUndefined(product.brands),
+    brand: emptyToUndefined(product.brands, PRODUCT_SHORT_TEXT_LIMIT),
     categories: cleanTags(product.categories_tags),
-    categoriesText: emptyToUndefined(product.categories),
-    ingredientsText: emptyToUndefined(ingredientsText),
+    categoriesText: emptyToUndefined(product.categories, PRODUCT_TEXT_LIMIT),
+    ingredientsText: emptyToUndefined(ingredientsText, PRODUCT_TEXT_LIMIT),
     ingredientsTags: cleanTags(product.ingredients_tags),
     additivesTags: cleanTags(product.additives_tags),
     allergensTags: cleanTags(product.allergens_tags),
     labelsTags: cleanTags(product.labels_tags),
-    nutriments: recordOrEmpty(product.nutriments),
+    nutriments: safeNutriments(product.nutriments),
     novaGroup: parseOptionalNumber(product.nova_group),
-    nutriscoreGrade: emptyToUndefined(product.nutriscore_grade),
-    ecoscoreGrade: emptyToUndefined(product.ecoscore_grade),
+    nutriscoreGrade: emptyToUndefined(product.nutriscore_grade, PRODUCT_SHORT_TEXT_LIMIT),
+    ecoscoreGrade: emptyToUndefined(product.ecoscore_grade, PRODUCT_SHORT_TEXT_LIMIT),
     imageUrl: safeOpenFoodFactsImageUrl(product.image_front_url) ?? safeOpenFoodFactsImageUrl(product.image_url),
     source: "open-food-facts",
   };
@@ -115,12 +125,66 @@ function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
 }
 
-function firstText(...values: Array<string | undefined>): string {
-  return values.find((value) => typeof value === "string" && value.trim())?.trim() ?? "";
+async function readBoundedJsonResponse(response: Response): Promise<OpenFoodFactsApiResponse> {
+  const contentLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > OPEN_FOOD_FACTS_MAX_RESPONSE_BYTES) {
+    throw new Error("Open Food Facts response was too large.");
+  }
+
+  const body = await readBoundedResponseText(response);
+  return JSON.parse(body) as OpenFoodFactsApiResponse;
 }
 
-function emptyToUndefined(value: unknown): string | undefined {
-  const trimmed = typeof value === "string" ? value.trim() : "";
+async function readBoundedResponseText(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+
+  if (!reader) {
+    throw new Error("Could not read Open Food Facts response.");
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      totalBytes += value.byteLength;
+      if (totalBytes > OPEN_FOOD_FACTS_MAX_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw new Error("Open Food Facts response was too large.");
+      }
+
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return new TextDecoder().decode(joinChunks(chunks, totalBytes));
+}
+
+function joinChunks(chunks: Uint8Array[], totalBytes: number): Uint8Array {
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return body;
+}
+
+function firstText(...values: Array<string | undefined>): string {
+  return trimText(values.find((value) => typeof value === "string" && value.trim()) ?? "", PRODUCT_TEXT_LIMIT);
+}
+
+function emptyToUndefined(value: unknown, maxLength: number): string | undefined {
+  const trimmed = trimText(value, maxLength);
   return trimmed ? trimmed : undefined;
 }
 
@@ -129,14 +193,26 @@ function cleanTags(tags?: unknown): string[] {
     return [];
   }
 
-  return Array.from(
-    new Set(
-      tags
-        .filter((tag): tag is string => typeof tag === "string")
-        .map((tag) => tag.replace(/^[a-z]{2}:/, "").replace(/-/g, " ").trim())
-        .filter(Boolean),
-    ),
-  );
+  const cleaned: string[] = [];
+  const seen = new Set<string>();
+
+  for (const tag of tags.slice(0, PRODUCT_TAG_INSPECT_LIMIT)) {
+    if (cleaned.length >= PRODUCT_TAG_LIMIT) {
+      break;
+    }
+
+    if (typeof tag !== "string") {
+      continue;
+    }
+
+    const next = trimText(tag.replace(/^[a-z]{2}:/, "").replace(/-/g, " "), PRODUCT_TAG_TEXT_LIMIT);
+    if (next && !seen.has(next)) {
+      seen.add(next);
+      cleaned.push(next);
+    }
+  }
+
+  return cleaned;
 }
 
 function parseOptionalNumber(value?: unknown): number | undefined {
@@ -148,6 +224,43 @@ function parseOptionalNumber(value?: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function recordOrEmpty(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+function safeNutriments(value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+
+  const safeEntries: Array<[string, unknown]> = [];
+  for (const [key, item] of Object.entries(value).slice(0, PRODUCT_NUTRIMENT_INSPECT_LIMIT)) {
+    if (safeEntries.length >= PRODUCT_NUTRIMENT_LIMIT) {
+      break;
+    }
+
+    const safeKey = trimText(key, PRODUCT_NUTRIMENT_KEY_LIMIT);
+    const safeValue = safeNutrimentValue(item);
+    if (safeKey && safeValue !== undefined) {
+      safeEntries.push([safeKey, safeValue]);
+    }
+  }
+
+  return Object.fromEntries(safeEntries);
+}
+
+function safeNutrimentValue(value: unknown): unknown {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (typeof value === "string") {
+    return trimText(value, PRODUCT_NUTRIMENT_TEXT_LIMIT);
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  return undefined;
+}
+
+function trimText(value: unknown, maxLength: number): string {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }

@@ -1,9 +1,20 @@
+use futures_util::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::OnceLock;
 use std::time::Duration;
 
 const OPEN_FOOD_FACTS_FIELDS: &str = "code,product_name,product_name_en,generic_name,brands,categories,categories_tags,ingredients_text,ingredients_text_en,ingredients_tags,additives_tags,allergens_tags,labels_tags,nutriments,nova_group,nutriscore_grade,ecoscore_grade,image_front_url,image_url";
+const OPEN_FOOD_FACTS_MAX_RESPONSE_BYTES: u64 = 256 * 1024;
+const PRODUCT_TEXT_LIMIT: usize = 4_000;
+const PRODUCT_SHORT_TEXT_LIMIT: usize = 160;
+const PRODUCT_TAG_LIMIT: usize = 80;
+const PRODUCT_TAG_INSPECT_LIMIT: usize = PRODUCT_TAG_LIMIT * 2;
+const PRODUCT_TAG_TEXT_LIMIT: usize = 80;
+const PRODUCT_NUTRIMENT_LIMIT: usize = 120;
+const PRODUCT_NUTRIMENT_INSPECT_LIMIT: usize = PRODUCT_NUTRIMENT_LIMIT * 2;
+const PRODUCT_NUTRIMENT_KEY_LIMIT: usize = 80;
+const PRODUCT_NUTRIMENT_TEXT_LIMIT: usize = 200;
 static OPEN_FOOD_FACTS_CLIENT: OnceLock<Result<reqwest::Client, String>> = OnceLock::new();
 
 #[derive(Debug, Deserialize)]
@@ -77,12 +88,43 @@ async fn fetch_product_by_barcode(barcode: String) -> Result<ProductDto, String>
         return Err(format!("Open Food Facts returned {}", response.status()));
     }
 
-    let payload = response
-        .json::<OpenFoodFactsResponse>()
-        .await
-        .map_err(|error| format!("Could not read Open Food Facts response: {error}"))?;
+    let body = read_bounded_response_body(response).await?;
+    let payload = parse_open_food_facts_response(&body)?;
 
     normalize_response(payload, &normalized)
+}
+
+async fn read_bounded_response_body(response: reqwest::Response) -> Result<Vec<u8>, String> {
+    if response.content_length().unwrap_or(0) > OPEN_FOOD_FACTS_MAX_RESPONSE_BYTES {
+        return Err("Open Food Facts response was too large.".to_string());
+    }
+
+    let mut body = Vec::new();
+    let mut stream = response.bytes_stream();
+
+    while let Some(chunk) = stream
+        .try_next()
+        .await
+        .map_err(|error| format!("Could not read Open Food Facts response: {error}"))?
+    {
+        append_bounded_response_chunk(&mut body, &chunk)?;
+    }
+
+    Ok(body)
+}
+
+fn append_bounded_response_chunk(body: &mut Vec<u8>, chunk: &[u8]) -> Result<(), String> {
+    let next_len = body
+        .len()
+        .checked_add(chunk.len())
+        .ok_or_else(|| "Open Food Facts response was too large.".to_string())?;
+
+    if next_len as u64 > OPEN_FOOD_FACTS_MAX_RESPONSE_BYTES {
+        return Err("Open Food Facts response was too large.".to_string());
+    }
+
+    body.extend_from_slice(chunk);
+    Ok(())
 }
 
 fn open_food_facts_client() -> Result<&'static reqwest::Client, String> {
@@ -96,6 +138,15 @@ fn open_food_facts_client() -> Result<&'static reqwest::Client, String> {
         })
         .as_ref()
         .map_err(Clone::clone)
+}
+
+fn parse_open_food_facts_response(body: &[u8]) -> Result<OpenFoodFactsResponse, String> {
+    if body.len() as u64 > OPEN_FOOD_FACTS_MAX_RESPONSE_BYTES {
+        return Err("Open Food Facts response was too large.".to_string());
+    }
+
+    serde_json::from_slice::<OpenFoodFactsResponse>(body)
+        .map_err(|error| format!("Could not read Open Food Facts response: {error}"))
 }
 
 fn normalize_response(
@@ -119,21 +170,28 @@ fn normalize_product(
     fallback_barcode: &str,
 ) -> ProductDto {
     let product_code = product.code.as_ref().or(response_code.as_ref());
-    let barcode = value_to_string(product_code).unwrap_or_else(|| fallback_barcode.to_string());
+    let barcode = bounded_text(
+        value_to_string(product_code)
+            .unwrap_or_else(|| fallback_barcode.to_string())
+            .as_str(),
+        PRODUCT_SHORT_TEXT_LIMIT,
+    )
+    .unwrap_or_else(|| fallback_barcode.to_string());
     let name = first_text([
         product.product_name.as_deref(),
         product.product_name_en.as_deref(),
         product.generic_name.as_deref(),
         Some("Unknown product"),
     ])
+    .and_then(|value| bounded_text(&value, PRODUCT_SHORT_TEXT_LIMIT))
     .unwrap_or_else(|| "Unknown product".to_string());
 
     ProductDto {
         barcode,
         name,
-        brand: empty_to_none(product.brands),
+        brand: empty_to_none(product.brands, PRODUCT_SHORT_TEXT_LIMIT),
         categories: clean_tags(product.categories_tags),
-        categories_text: empty_to_none(product.categories),
+        categories_text: empty_to_none(product.categories, PRODUCT_TEXT_LIMIT),
         ingredients_text: first_text([
             product.ingredients_text.as_deref(),
             product.ingredients_text_en.as_deref(),
@@ -142,10 +200,10 @@ fn normalize_product(
         additives_tags: clean_tags(product.additives_tags),
         allergens_tags: clean_tags(product.allergens_tags),
         labels_tags: clean_tags(product.labels_tags),
-        nutriments: object_value_or_empty(product.nutriments),
+        nutriments: safe_nutriments(product.nutriments),
         nova_group: parse_u8(product.nova_group.as_ref()),
-        nutriscore_grade: empty_to_none(product.nutriscore_grade),
-        ecoscore_grade: empty_to_none(product.ecoscore_grade),
+        nutriscore_grade: empty_to_none(product.nutriscore_grade, PRODUCT_SHORT_TEXT_LIMIT),
+        ecoscore_grade: empty_to_none(product.ecoscore_grade, PRODUCT_SHORT_TEXT_LIMIT),
         image_url: safe_image_url(product.image_front_url)
             .or_else(|| safe_image_url(product.image_url)),
         source: "open-food-facts",
@@ -183,20 +241,12 @@ fn first_text<'a>(values: impl IntoIterator<Item = Option<&'a str>>) -> Option<S
     values
         .into_iter()
         .flatten()
-        .map(str::trim)
-        .find(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
+        .filter_map(|value| bounded_text(value, PRODUCT_TEXT_LIMIT))
+        .next()
 }
 
-fn empty_to_none(value: Option<String>) -> Option<String> {
-    value.and_then(|item| {
-        let trimmed = item.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed.to_string())
-        }
-    })
+fn empty_to_none(value: Option<String>, max_len: usize) -> Option<String> {
+    value.and_then(|item| bounded_text(&item, max_len))
 }
 
 fn safe_image_url(value: Option<String>) -> Option<String> {
@@ -220,7 +270,11 @@ fn clean_tags(tags: Option<Value>) -> Vec<String> {
         return cleaned;
     };
 
-    for tag in tags {
+    for tag in tags.into_iter().take(PRODUCT_TAG_INSPECT_LIMIT) {
+        if cleaned.len() >= PRODUCT_TAG_LIMIT {
+            break;
+        }
+
         let Some(tag) = tag.as_str() else {
             continue;
         };
@@ -229,20 +283,49 @@ fn clean_tags(tags: Option<Value>) -> Vec<String> {
             .map(|(_, value)| value)
             .unwrap_or(tag)
             .replace('-', " ");
-        let trimmed = without_locale.trim();
+        let Some(trimmed) = bounded_text(&without_locale, PRODUCT_TAG_TEXT_LIMIT) else {
+            continue;
+        };
 
-        if !trimmed.is_empty() && !cleaned.iter().any(|existing| existing == trimmed) {
-            cleaned.push(trimmed.to_string());
+        if !cleaned.iter().any(|existing| existing == &trimmed) {
+            cleaned.push(trimmed);
         }
     }
 
     cleaned
 }
 
-fn object_value_or_empty(value: Option<Value>) -> Value {
+fn safe_nutriments(value: Option<Value>) -> Value {
     match value {
-        Some(Value::Object(map)) => Value::Object(map),
+        Some(Value::Object(map)) => {
+            let mut safe = serde_json::Map::new();
+
+            for (key, value) in map.into_iter().take(PRODUCT_NUTRIMENT_INSPECT_LIMIT) {
+                if safe.len() >= PRODUCT_NUTRIMENT_LIMIT {
+                    break;
+                }
+
+                let Some(key) = bounded_text(&key, PRODUCT_NUTRIMENT_KEY_LIMIT) else {
+                    continue;
+                };
+                let Some(value) = safe_nutriment_value(value) else {
+                    continue;
+                };
+
+                safe.insert(key, value);
+            }
+
+            Value::Object(safe)
+        }
         _ => Value::Object(Default::default()),
+    }
+}
+
+fn safe_nutriment_value(value: Value) -> Option<Value> {
+    match value {
+        Value::Number(_) | Value::Bool(_) => Some(value),
+        Value::String(text) => bounded_text(&text, PRODUCT_NUTRIMENT_TEXT_LIMIT).map(Value::String),
+        _ => None,
     }
 }
 
@@ -260,6 +343,15 @@ fn value_to_string(value: Option<&Value>) -> Option<String> {
         Some(Value::Number(number)) => Some(number.to_string()),
         _ => None,
     }
+}
+
+fn bounded_text(value: &str, max_len: usize) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    Some(trimmed.chars().take(max_len).collect())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -391,5 +483,90 @@ mod tests {
         assert!(normalized.additives_tags.is_empty());
         assert_eq!(normalized.labels_tags, vec!["organic"]);
         assert_eq!(normalized.nutriments, Value::Object(Default::default()));
+    }
+
+    #[test]
+    fn caps_oversized_product_fields() {
+        let nutriments = (0..160)
+            .map(|index| {
+                (
+                    format!("nutriment_{index}"),
+                    Value::Number(serde_json::Number::from(index)),
+                )
+            })
+            .collect();
+        let product = OpenFoodFactsProduct {
+            code: Some(Value::String("12345678".to_string())),
+            product_name: Some("A".repeat(300)),
+            product_name_en: None,
+            generic_name: None,
+            brands: Some("B".repeat(300)),
+            categories: Some("C".repeat(5_000)),
+            categories_tags: Some(serde_json::json!((0..120)
+                .map(|index| format!("en:category-{index}-{}", "x".repeat(120)))
+                .collect::<Vec<_>>())),
+            ingredients_text: Some("I".repeat(5_000)),
+            ingredients_text_en: None,
+            ingredients_tags: Some(serde_json::json!((0..120)
+                .map(|index| format!("en:ingredient-{index}"))
+                .collect::<Vec<_>>())),
+            additives_tags: None,
+            allergens_tags: None,
+            labels_tags: None,
+            nutriments: Some(Value::Object(nutriments)),
+            nova_group: None,
+            nutriscore_grade: None,
+            ecoscore_grade: None,
+            image_front_url: None,
+            image_url: None,
+        };
+
+        let normalized = normalize_product(product, None, "fallback");
+
+        assert_eq!(normalized.name.len(), PRODUCT_SHORT_TEXT_LIMIT);
+        assert_eq!(
+            normalized.brand.as_ref().map(String::len),
+            Some(PRODUCT_SHORT_TEXT_LIMIT)
+        );
+        assert_eq!(
+            normalized.categories_text.as_ref().map(String::len),
+            Some(PRODUCT_TEXT_LIMIT)
+        );
+        assert_eq!(
+            normalized.ingredients_text.as_ref().map(String::len),
+            Some(PRODUCT_TEXT_LIMIT)
+        );
+        assert_eq!(normalized.categories.len(), PRODUCT_TAG_LIMIT);
+        assert!(normalized
+            .categories
+            .iter()
+            .all(|tag| tag.len() <= PRODUCT_TAG_TEXT_LIMIT));
+        assert_eq!(normalized.ingredients_tags.len(), PRODUCT_TAG_LIMIT);
+        assert_eq!(
+            normalized.nutriments.as_object().map(|items| items.len()),
+            Some(PRODUCT_NUTRIMENT_LIMIT)
+        );
+    }
+
+    #[test]
+    fn rejects_oversized_response_body() {
+        let oversized = vec![b'x'; OPEN_FOOD_FACTS_MAX_RESPONSE_BYTES as usize + 1];
+
+        assert_eq!(
+            parse_open_food_facts_response(&oversized).unwrap_err(),
+            "Open Food Facts response was too large."
+        );
+    }
+
+    #[test]
+    fn rejects_oversized_response_chunk_before_appending() {
+        let mut body = vec![b'x'; OPEN_FOOD_FACTS_MAX_RESPONSE_BYTES as usize];
+        let previous_len = body.len();
+
+        assert_eq!(
+            append_bounded_response_chunk(&mut body, b"x").unwrap_err(),
+            "Open Food Facts response was too large."
+        );
+        assert_eq!(body.len(), previous_len);
     }
 }
