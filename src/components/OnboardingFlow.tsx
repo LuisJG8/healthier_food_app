@@ -7,6 +7,7 @@ import {
   Droplets,
   Dumbbell,
   Eye,
+  EyeOff,
   Fish,
   Flame,
   HeartPulse,
@@ -24,7 +25,7 @@ import {
   WheatOff,
   Zap,
 } from "lucide-react";
-import { FormEvent, type ReactNode, useEffect } from "react";
+import { FormEvent, type ReactNode, useEffect, useState } from "react";
 import boulderCanyonChips from "../assets/boulder-canyon-chips.avif";
 import burgerKingFries from "../assets/burger-king-fries.jpg";
 import appLogo from "../assets/healthier-food-logo-option-07.png";
@@ -265,7 +266,7 @@ function ScanSwapScreen({ onBack, onContinue }: { onBack: () => void; onContinue
       </div>
 
       <div className="mt-6 overflow-hidden rounded-[24px] border border-[#7EDFE0] bg-gradient-to-br from-[#B6F4E4] to-[#16CBCD] p-5 text-white shadow-[0_18px_38px_rgba(0,128,128,0.16)]">
-        <div className="flex aspect-video items-center justify-center rounded-[18px] bg-white/24">
+        <div className="flex aspect-video items-center justify-center rounded-[18px] bg-white/25">
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#00696B] shadow-[0_12px_24px_rgba(0,105,107,0.14)]">
             <Play size={30} fill="currentColor" strokeWidth={0} />
           </span>
@@ -340,7 +341,7 @@ function QuestionScreen<T extends string>({
               className={`relative flex min-h-[50px] w-full items-center gap-3 overflow-hidden rounded-[14px] border px-3.5 py-2.5 text-left transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00C5C8]/40 ${
                 isSelected
                   ? "border-[#009A9D] bg-gradient-to-r from-[#E1FAF4] to-white shadow-[0_12px_28px_rgba(0,105,107,0.15),inset_0_0_0_1px_rgba(0,154,157,0.22)] ring-2 ring-[#00C5C8]/35"
-                  : "border-[#D9E4E5] bg-white/72 hover:border-[#00C5C8] active:bg-[#EEF7F8]"
+                  : "border-[#D9E4E5] bg-white/70 hover:border-[#00C5C8] active:bg-[#EEF7F8]"
               }`}
               onClick={() => onToggle(option.value)}
             >
@@ -376,6 +377,8 @@ function QuestionScreen<T extends string>({
 }
 
 function AccountScreen({ onBack, onComplete }: { onBack: () => void; onComplete: () => void }) {
+  const [showPassword, setShowPassword] = useState(false);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onComplete();
@@ -398,8 +401,10 @@ function AccountScreen({ onBack, onComplete }: { onBack: () => void; onComplete:
             <input
               className="min-w-0 flex-1 bg-transparent text-[16px] font-semibold outline-none placeholder:text-[#9BA5A7]"
               type="email"
+              name="email"
               placeholder="Email address"
               autoComplete="email"
+              required
             />
           </span>
         </label>
@@ -410,11 +415,20 @@ function AccountScreen({ onBack, onComplete }: { onBack: () => void; onComplete:
             <LockKeyhole size={20} strokeWidth={2.2} className="shrink-0 text-[#657A7C]" />
             <input
               className="min-w-0 flex-1 bg-transparent text-[16px] font-semibold outline-none placeholder:text-[#9BA5A7]"
-              type="password"
+              type={showPassword ? "text" : "password"}
+              name="password"
               placeholder="Password"
               autoComplete="new-password"
+              required
             />
-            <Eye size={21} strokeWidth={2.2} className="shrink-0 text-[#657A7C]" />
+            <button
+              type="button"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#657A7C] transition hover:bg-[#EEF7F8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00C5C8]/40"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() => setShowPassword((isVisible) => !isVisible)}
+            >
+              {showPassword ? <EyeOff size={21} strokeWidth={2.2} /> : <Eye size={21} strokeWidth={2.2} />}
+            </button>
           </span>
         </label>
 

@@ -8,7 +8,8 @@ export function alternativeAt(alternatives: AlternativeProduct[], index: number,
     return fallback;
   }
 
-  return alternatives[index % alternatives.length] ?? alternatives[0];
+  const safeIndex = ((index % alternatives.length) + alternatives.length) % alternatives.length;
+  return alternatives[safeIndex] ?? alternatives[0];
 }
 
 export function acceptSwap(acceptedSwapIds: AcceptedSwapIds, barcode: string, alternative: AlternativeProduct): AcceptedSwapIds {

@@ -34,6 +34,7 @@ describe("swap state helpers", () => {
     expect(alternativeAt(alternatives, 0, fallback).id).toBe("siete-chips");
     expect(alternativeAt(alternatives, 1, fallback).id).toBe("late-july-sea-salt");
     expect(alternativeAt(alternatives, 2, fallback).id).toBe("siete-chips");
+    expect(alternativeAt(alternatives, -1, fallback).id).toBe("late-july-sea-salt");
     expect(alternativeAt([], 4, fallback)).toBe(fallback);
   });
 

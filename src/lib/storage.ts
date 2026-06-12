@@ -224,7 +224,8 @@ function sanitizeOptionArray<T extends string>(value: unknown, allowed: T[], exc
 
   const allowedValues = new Set(allowed);
   const selected = value.filter((item): item is T => typeof item === "string" && allowedValues.has(item as T));
-  const uniqueSelected = allowed.filter((item) => selected.includes(item));
+  const selectedSet = new Set(selected);
+  const uniqueSelected = allowed.filter((item) => selectedSet.has(item));
 
   if (exclusiveValue && uniqueSelected.includes(exclusiveValue)) {
     return [exclusiveValue];
