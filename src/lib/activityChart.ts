@@ -83,12 +83,34 @@ export function buildCurrentActivityWeek(days: ActivityDay[], today = new Date()
   });
 }
 
+export function formatActivityWeekRange(week: ActivityChartCell[]): string {
+  const startDate = week[0]?.date;
+  const endDate = week[week.length - 1]?.date;
+
+  if (!startDate || !endDate) {
+    return "";
+  }
+
+  return `${formatActivityDate(startDate)} - ${formatActivityDate(endDate)}`;
+}
+
 export function activityLevel(count: number): number {
   if (count <= 0) return 0;
   if (count === 1) return 1;
   if (count === 2) return 2;
   if (count === 3) return 3;
   return 4;
+}
+
+function formatActivityDate(dateKey: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+
+  if (!match) {
+    return dateKey;
+  }
+
+  const [, year, month, day] = match;
+  return `${day}/${month}/${year}`;
 }
 
 function monthLabelForWeek(weekStart: Date, today: Date): string | null {

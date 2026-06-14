@@ -58,6 +58,43 @@ export interface ScanHistoryItem {
   imageUrl?: string;
 }
 
+export type MainGoal =
+  | "eat-healthier"
+  | "energy-focus"
+  | "manage-weight"
+  | "fitness-goals"
+  | "reduce-inflammation"
+  | "long-term-health";
+
+export type DietPreference = "no-preference" | "vegetarian" | "vegan" | "pescatarian" | "keto-low-carb" | "gluten-free" | "dairy-free";
+
+export type FoodAvoidance =
+  | "none"
+  | "seed-oils"
+  | "added-sugars"
+  | "artificial-sweeteners"
+  | "artificial-colors"
+  | "high-sodium"
+  | "gluten"
+  | "dairy"
+  | "gmos";
+
+export type SwapStrictness =
+  | "closest-match"
+  | "cleaner-ingredients"
+  | "lower-sugar-sodium"
+  | "avoid-seed-oils"
+  | "same-convenience"
+  | "strict-clean-label";
+
+export interface OnboardingProfile {
+  mainGoals: MainGoal[];
+  dietPreferences: DietPreference[];
+  foodsToAvoid: FoodAvoidance[];
+  swapStrictness: SwapStrictness[];
+  completed: boolean;
+}
+
 export type ActivityEventType = "barcode_scan" | "profile_view" | "login";
 
 export type ActivityEventCounts = Partial<Record<ActivityEventType, number>>;

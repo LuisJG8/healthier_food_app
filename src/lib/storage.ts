@@ -1,16 +1,64 @@
-import type { ActivityDay, ActivityEventCounts, ActivityEventType, AppSettings, ScanHistoryItem } from "../types";
+import type {
+  ActivityDay,
+  ActivityEventCounts,
+  ActivityEventType,
+  AppSettings,
+  DietPreference,
+  FoodAvoidance,
+  MainGoal,
+  OnboardingProfile,
+  ScanHistoryItem,
+  SwapStrictness,
+} from "../types";
 import { getBarcodeError } from "./barcode";
 import { safeOpenFoodFactsImageUrl } from "./sanitize";
 
 export const ACTIVITY_KEY = "betterbite.activity.v1";
+export const ONBOARDING_KEY = "betterbite.onboarding.v2";
 export const SCAN_HISTORY_KEY = "betterbite.scanHistory.v1";
 export const SETTINGS_KEY = "betterbite.settings.v1";
 
 const ACTIVITY_RETENTION_DAYS = 400;
 const ACTIVITY_EVENT_TYPES = new Set<ActivityEventType>(["barcode_scan", "profile_view", "login"]);
+const MAIN_GOALS: MainGoal[] = [
+  "eat-healthier",
+  "energy-focus",
+  "manage-weight",
+  "fitness-goals",
+  "reduce-inflammation",
+  "long-term-health",
+];
+const DIET_PREFERENCES: DietPreference[] = ["no-preference", "vegetarian", "vegan", "pescatarian", "keto-low-carb", "gluten-free", "dairy-free"];
+const FOODS_TO_AVOID: FoodAvoidance[] = [
+  "none",
+  "seed-oils",
+  "added-sugars",
+  "artificial-sweeteners",
+  "artificial-colors",
+  "high-sodium",
+  "gluten",
+  "dairy",
+  "gmos",
+];
+const SWAP_STRICTNESS: SwapStrictness[] = [
+  "closest-match",
+  "cleaner-ingredients",
+  "lower-sugar-sodium",
+  "avoid-seed-oils",
+  "same-convenience",
+  "strict-clean-label",
+];
 
 const DEFAULT_SETTINGS: AppSettings = {
   strictSeedOilPenalty: true,
+};
+
+const DEFAULT_ONBOARDING_PROFILE: OnboardingProfile = {
+  mainGoals: [],
+  dietPreferences: [],
+  foodsToAvoid: [],
+  swapStrictness: [],
+  completed: false,
 };
 
 export function loadActivityDays(): ActivityDay[] {
@@ -68,6 +116,16 @@ export function upsertScanHistory(item: ScanHistoryItem): ScanHistoryItem[] {
   const next = [item, ...existing].slice(0, 20);
   saveScanHistory(next);
   return next;
+}
+
+export function loadOnboardingProfile(): OnboardingProfile {
+  return toOnboardingProfile(readJson<unknown>(ONBOARDING_KEY, {}));
+}
+
+export function saveOnboardingProfile(profile: OnboardingProfile): OnboardingProfile {
+  const safeProfile = toOnboardingProfile(profile);
+  writeJson(ONBOARDING_KEY, safeProfile);
+  return safeProfile;
 }
 
 export function loadSettings(): AppSettings {
@@ -138,6 +196,42 @@ function toScanHistoryItem(value: unknown): ScanHistoryItem | null {
   }
 
   return item;
+}
+
+function toOnboardingProfile(value: unknown): OnboardingProfile {
+  if (!isRecord(value)) {
+    return DEFAULT_ONBOARDING_PROFILE;
+  }
+
+  const mainGoals = sanitizeOptionArray(value.mainGoals, MAIN_GOALS);
+  const dietPreferences = sanitizeOptionArray(value.dietPreferences, DIET_PREFERENCES, "no-preference");
+  const foodsToAvoid = sanitizeOptionArray(value.foodsToAvoid, FOODS_TO_AVOID, "none");
+  const swapStrictness = sanitizeOptionArray(value.swapStrictness, SWAP_STRICTNESS);
+
+  return {
+    mainGoals,
+    dietPreferences,
+    foodsToAvoid,
+    swapStrictness,
+    completed: Boolean(value.completed && mainGoals.length && dietPreferences.length && foodsToAvoid.length && swapStrictness.length),
+  };
+}
+
+function sanitizeOptionArray<T extends string>(value: unknown, allowed: T[], exclusiveValue?: T): T[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const allowedValues = new Set(allowed);
+  const selected = value.filter((item): item is T => typeof item === "string" && allowedValues.has(item as T));
+  const selectedSet = new Set(selected);
+  const uniqueSelected = allowed.filter((item) => selectedSet.has(item));
+
+  if (exclusiveValue && uniqueSelected.includes(exclusiveValue)) {
+    return [exclusiveValue];
+  }
+
+  return uniqueSelected;
 }
 
 function sanitizeActivityDays(values: unknown[]): ActivityDay[] {
